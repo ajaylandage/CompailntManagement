@@ -1,0 +1,188 @@
+@page "/create-complaint"
+@using ComplaintManagementSystem.Shared.DTOs
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components.Authorization
+@inject ComplaintManagementSystem.Client.Services.CategoryService CategoryService
+@inject ComplaintManagementSystem.Client.Services.ComplaintService ComplaintService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Create Complaint</PageTitle>
+
+@if (!isAuthenticated)
+{
+    <div class="d-flex justify-content-center align-items-center" style="height: 60vh;">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Checking authentication...</p>
+        </div>
+    </div>
+}
+else
+{
+    <h3>Create Complaint</h3>
+
+    <EditForm Model="model" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="mb-3">
+            <label class="form-label">Category</label>
+            <InputSelect @bind-Value="model.CategoryId" class="form-select">
+                <option value="">-- Select --</option>
+                @foreach (var c in categories)
+                {
+                    <option value="@c.CategoryID">@c.CategoryName</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => model.CategoryId)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Title</label>
+            <InputText @bind-Value="model.Title" class="form-control" />
+            <ValidationMessage For="@(() => model.Title)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <InputTextArea @bind-Value="model.Description" class="form-control" />
+            <ValidationMessage For="@(() => model.Description)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Address</label>
+            <InputText @bind-Value="model.LocationAddress" class="form-control" />
+            <ValidationMessage For="@(() => model.LocationAddress)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Priority</label>
+            <InputSelect @bind-Value="model.Priority" class="form-select">
+                <option value="">-- Select --</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+            </InputSelect>
+            <ValidationMessage For="@(() => model.Priority)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Location Coordinates (lat,lng)</label>
+            <InputText @bind-Value="LocationCoordinates" class="form-control" />
+            @if (!string.IsNullOrEmpty(coordError))
+            {
+                <div class="text-danger">@coordError</div>
+            }
+        </div>
+
+        <button class="btn btn-primary" type="submit" disabled="@isSubmitting">Submit</button>
+    </EditForm>
+
+    @if (isSubmitting)
+    {
+        <p>Submitting...</p>
+    }
+}
+
+@code {
+    private CreateComplaintRequest model = new();
+    private List<CategoryResponse> categories = new();
+    private bool isSubmitting = false;
+    private string? successMessage;
+    private string? LocationCoordinates { get; set; }
+    private string? coordError;
+    private bool isAuthenticated = false;
+
+    // Rough bounding box for India (approx):
+    // Latitude: 6 to 37, Longitude: 68 to 98
+    private const double IndiaMinLat = 6.0;
+    private const double IndiaMaxLat = 37.0;
+    private const double IndiaMinLng = 68.0;
+    private const double IndiaMaxLng = 98.0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            isAuthenticated = true;
+            categories = await CategoryService.GetCategoriesAsync();
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private bool TryParseCoordinates(string? input, out double? lat, out double? lng)
+    {
+        lat = null;
+        lng = null;
+        coordError = null;
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            coordError = "Location coordinates are required. Please enter latitude,longitude for a point in India.";
+            return false;
+        }
+
+        var parts = input.Split(',');
+        if (parts.Length != 2)
+        {
+            coordError = "Coordinates must be in the format: latitude,longitude (for example: 18.5204,73.8567).";
+            return false;
+        }
+
+        if (!double.TryParse(parts[0].Trim(), out var latVal) || !double.TryParse(parts[1].Trim(), out var lngVal))
+        {
+            coordError = "Latitude and longitude must be numeric values (for example: 18.5204,73.8567).";
+            return false;
+        }
+
+        if (latVal < -90 || latVal > 90 || lngVal < -180 || lngVal > 180)
+        {
+            coordError = "Latitude must be between -90 and 90 and longitude between -180 and 180.";
+            return false;
+        }
+
+        // India-specific bounding check
+        if (latVal < IndiaMinLat || latVal > IndiaMaxLat || lngVal < IndiaMinLng || lngVal > IndiaMaxLng)
+        {
+            coordError = "The coordinates do not appear to be inside India. Please provide a location within India.";
+            return false;
+        }
+
+        lat = latVal;
+        lng = lngVal;
+        return true;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        successMessage = null;
+        coordError = null;
+
+        if (!TryParseCoordinates(LocationCoordinates, out var lat, out var lng))
+        {
+            isSubmitting = false;
+            return;
+        }
+
+        model.Latitude = lat;
+        model.Longitude = lng;
+
+        await ComplaintService.CreateComplaintAsync(model);
+
+        isSubmitting = false;
+        successMessage = "Complaint submitted successfully.";
+
+        // clear form
+        model = new CreateComplaintRequest();
+        LocationCoordinates = null;
+
+        Navigation.NavigateTo("/complaints");
+    }
+}

@@ -1,0 +1,64 @@
+@page "/login"
+@using ComplaintManagementSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
+@using ComplaintManagementSystem.Client.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<h3>Login</h3>
+
+<EditForm Model="model" OnValidSubmit="HandleLogin">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Email or Username</label>
+        <InputText @bind-Value="model.UsernameOrEmail" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <InputText @bind-Value="model.Password" type="password" class="form-control" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Login</button>
+</EditForm>
+
+<div class="mt-3">
+    <span>Don't have an account?</span>
+    <a href="/register" class="ms-1">Register</a>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger mt-2">@errorMessage</div>
+}
+
+@code {
+    private LoginRequest model = new();
+    private string? errorMessage;
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        try
+        {
+            var resp = await AuthService.LoginAsync(model);
+            if (!string.IsNullOrEmpty(resp?.Token))
+            {
+                if (AuthenticationStateProvider is JwtAuthenticationStateProvider jp)
+                {
+                    jp.MarkUserAsAuthenticated(resp.Token);
+                }
+                Navigation.NavigateTo("/dashboard");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}

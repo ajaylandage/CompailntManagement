@@ -1,0 +1,44 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+
+@if (!initialized)
+{
+    <div class="d-flex justify-content-center align-items-center" style="height:100vh">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <PageTitle>Not found</PageTitle>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <div class="container mt-4">
+                        <div class="alert alert-warning">
+                            <h4>Page Not Found</h4>
+                            <p>Sorry, there's nothing at this address.</p>
+                            <a href="/" class="btn btn-primary">Go Home</a>
+                        </div>
+                    </div>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </CascadingAuthenticationState>
+}
+
+@code {
+    private bool initialized = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+        initialized = true;
+    }
+}

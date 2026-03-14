@@ -1,0 +1,121 @@
+@page "/add-engineer"
+@using ComplaintManagementSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
+@using ComplaintManagementSystem.Client.Services
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Add Engineer</PageTitle>
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-hard-hat me-2"></i>Add Engineer</h4>
+            </div>
+            <div class="card-body p-4">
+                @if (!isAdmin)
+                {
+                    <div class="alert alert-danger">You are not authorized to view this page.</div>
+                }
+                else
+                {
+                    <EditForm Model="model" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+                        
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">First Name</label>
+                                <InputText @bind-Value="model.FirstName" class="form-control" />
+                                <ValidationMessage For="@(() => model.FirstName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last Name</label>
+                                <InputText @bind-Value="model.LastName" class="form-control" />
+                                <ValidationMessage For="@(() => model.LastName)" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText @bind-Value="model.Email" type="email" class="form-control" />
+                            <ValidationMessage For="@(() => model.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText @bind-Value="model.Password" type="password" class="form-control" />
+                            <ValidationMessage For="@(() => model.Password)" />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+                        
+                        @if (!string.IsNullOrEmpty(successMessage))
+                        {
+                            <div class="alert alert-success">@successMessage</div>
+                        }
+
+                        <button class="btn btn-primary w-100 mt-3" type="submit" disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Adding...</span>
+                            }
+                            else
+                            {
+                                <i class="fas fa-user-plus me-2"></i><span>Add Engineer</span>
+                            }
+                        </button>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest model = new RegisterRequest { RoleId = 3 }; // 3 is Engineer
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isAdmin = JwtAuthenticationStateProvider.IsAdminPrincipal(authState.User);
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            await AuthService.RegisterAsync(model);
+            successMessage = "Engineer account created successfully.";
+            model = new RegisterRequest { RoleId = 3 }; // reset form
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

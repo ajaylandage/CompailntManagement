@@ -1,0 +1,64 @@
+@page "/register"
+@using ComplaintManagementSystem.Shared.DTOs
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Register</PageTitle>
+
+<h3>Register</h3>
+
+<EditForm Model="model" OnValidSubmit="HandleRegister">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label class="form-label">First Name</label>
+        <InputText @bind-Value="model.FirstName" class="form-control" />
+        <ValidationMessage For="@(() => model.FirstName)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Last Name</label>
+        <InputText @bind-Value="model.LastName" class="form-control" />
+        <ValidationMessage For="@(() => model.LastName)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="model.Email" class="form-control" />
+        <ValidationMessage For="@(() => model.Email)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <InputText @bind-Value="model.Password" type="password" class="form-control" />
+        <ValidationMessage For="@(() => model.Password)" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Register</button>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-info mt-2">@message</div>
+}
+
+@code {
+    private RegisterRequest model = new() { RoleId = 2 };
+    private string? message;
+
+    private async Task HandleRegister()
+    {
+        message = null;
+        try
+        {
+            await AuthService.RegisterAsync(model);
+            message = "Registration successful. You can now log in.";
+            // Optionally auto-login
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+}

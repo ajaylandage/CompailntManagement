@@ -1,0 +1,141 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using ComplaintManagementSystem.Client.Services
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<nav class="scms-navbar">
+    <div class="scms-navbar-inner">
+
+        <!-- Brand -->
+        <a class="scms-brand" href="/">
+            <span class="scms-brand-icon">
+                <i class="fas fa-shield-alt"></i>
+            </span>
+            <span class="scms-brand-text">
+                <span class="scms-brand-title">Smart Complaint</span>
+                <span class="scms-brand-sub">Management System</span>
+            </span>
+        </a>
+
+        <!-- Hamburger (mobile) -->
+        <button class="scms-toggler" id="scmsToggler" onclick="document.getElementById('scmsMenu').classList.toggle('open')">
+            <span></span><span></span><span></span>
+        </button>
+
+        <!-- Menu -->
+        <div class="scms-menu" id="scmsMenu">
+
+            <!-- Left nav links -->
+            <div class="scms-nav-links">
+                @if (!isAuthenticated)
+                {
+                    <NavLink class="scms-link" href="/" Match="NavLinkMatch.All">
+                        <i class="fas fa-home"></i><span>Home</span>
+                    </NavLink>
+                }
+                else
+                {
+                    <NavLink class="scms-link" href="/dashboard">
+                        <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+                    </NavLink>
+                    <NavLink class="scms-link" href="/complaints">
+                        <i class="fas fa-list"></i><span>Complaints</span>
+                    </NavLink>
+                    <NavLink class="scms-link" href="/complaints-map">
+                        <i class="fas fa-map-marker-alt"></i><span>Complaints Map</span>
+                    </NavLink>
+                    <NavLink class="scms-link" href="/create-complaint">
+                        <i class="fas fa-plus"></i><span>Add Complaint</span>
+                    </NavLink>
+                    <NavLink class="scms-link" href="/categories">
+                        <i class="fas fa-tags"></i><span>Complaint Categories</span>
+                    </NavLink>
+                    @if (isAdmin)
+                    {
+                        <NavLink class="scms-link" href="/add-engineer">
+                            <i class="fas fa-user-hard-hat"></i><span>Add Engineer</span>
+                        </NavLink>
+                    }
+                }
+            </div>
+
+            <!-- Right auth area -->
+            <div class="scms-auth">
+                @if (!isAuthenticated)
+                {
+                    <NavLink class="scms-link" href="/register">
+                        <i class="fas fa-user-plus"></i><span>Register</span>
+                    </NavLink>
+                    <NavLink class="scms-link scms-link-outlined" href="/login">
+                        <i class="fas fa-sign-in-alt"></i><span>Login</span>
+                    </NavLink>
+                }
+                else
+                {
+                    <div class="scms-user">
+                        <span class="scms-avatar"><i class="fas fa-user"></i></span>
+                        <span class="scms-username">Hello, <strong>@firstName</strong></span>
+                    </div>
+                    <button class="scms-logout" @onclick="Logout">
+                        <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+                    </button>
+                }
+            </div>
+
+        </div>
+    </div>
+</nav>
+
+@code {
+    private string? firstName;
+    private bool isAuthenticated = false;
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        await UpdateUserStateAsync();
+    }
+
+    private async Task UpdateUserStateAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            isAuthenticated = true;
+            isAdmin = JwtAuthenticationStateProvider.IsAdminPrincipal(user);
+            firstName = user.Claims.FirstOrDefault(c => c.Type == "given_name" || c.Type == "givenname")?.Value
+                        ?? user.Identity.Name
+                        ?? "User";
+        }
+        else
+        {
+            isAuthenticated = false;
+            isAdmin = false;
+            firstName = null;
+        }
+        StateHasChanged();
+    }
+
+    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        await InvokeAsync(async () => await UpdateUserStateAsync());
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        if (AuthenticationStateProvider is JwtAuthenticationStateProvider jp)
+            jp.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
+}

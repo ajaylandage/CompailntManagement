@@ -1,0 +1,237 @@
+@page "/complaints-map"
+@using ComplaintManagementSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
+@inject ComplaintManagementSystem.Client.Services.ComplaintService ComplaintService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Complaints Map</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="fas fa-map-marker-alt me-2"></i>Complaints Map</h3>
+    @if (withCoords.Any())
+    {
+        <span class="badge bg-primary fs-6">
+            <i class="fas fa-map-pin me-1"></i>@withCoords.Count complaint(s) on map
+        </span>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger d-flex align-items-start mb-3">
+        <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+        <div>
+            <strong>Error:</strong> @errorMessage
+            <div class="mt-2">
+                <button class="btn btn-sm btn-outline-danger" @onclick="RetryLoadMap">
+                    <i class="fas fa-redo me-1"></i>Retry
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isLoading)
+{
+    <div class="alert alert-info d-flex align-items-center mb-3">
+        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <span>@(string.IsNullOrEmpty(statusMessage) ? "Initializing map..." : statusMessage)</span>
+    </div>
+}
+
+@if (!isLoading && !withCoords.Any() && string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-warning mb-3">
+        <i class="fas fa-info-circle me-2"></i>
+        No complaints with GPS coordinates found. Add location data when creating complaints for them to appear here.
+    </div>
+}
+
+<!-- Map container is ALWAYS rendered so Leaflet can always find the element -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div id="complaintsMap" style="height:600px; width:100%;"></div>
+    </div>
+</div>
+
+@code {
+    private List<(ComplaintListResponse listItem, ComplaintDetailsResponse details)> withCoords = new();
+    private bool isLoading = true;
+    private bool mapInitialized = false;
+    private bool mapStarted = false;          // guard: only start once
+    private string? errorMessage;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("/login");
+        }
+        // Do NOT set any flag here that would block OnAfterRenderAsync
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Run exactly once, regardless of auth state timing
+        if (mapStarted) return;
+        mapStarted = true;
+
+        await InitializeMapAsync();
+        await LoadMarkersAsync();
+    }
+
+    private async Task InitializeMapAsync()
+    {
+        try
+        {
+            statusMessage = "Initializing map...";
+            isLoading = true;
+            StateHasChanged();
+
+            // Wait for the browser to finish painting the div
+            await Task.Delay(150);
+
+            // Safe Leaflet availability check — avoid eval() which can throw in strict WASM context
+            bool leafletAvailable;
+            try
+            {
+                leafletAvailable = await JS.InvokeAsync<bool>("leafletFunctions.isAvailable");
+            }
+            catch
+            {
+                leafletAvailable = false;
+            }
+
+            if (!leafletAvailable)
+            {
+                errorMessage = "Leaflet library failed to load. Check your internet connection and refresh the page.";
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            bool ok = await JS.InvokeAsync<bool>("leafletFunctions.initMap", "complaintsMap", 20.5937, 78.9629, 5);
+            if (!ok)
+            {
+                errorMessage = "Map container not found. Please refresh the page.";
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            mapInitialized = true;
+            statusMessage = "Map ready. Loading complaints...";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to initialize map: {ex.Message}";
+            isLoading = false;
+            Console.WriteLine($"[Map] Init error: {ex}");
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMarkersAsync()
+    {
+        if (!mapInitialized) return;
+
+        try
+        {
+            var all = await ComplaintService.GetComplaintsAsync();
+            statusMessage = $"Checking {all.Count} complaint(s) for GPS coordinates...";
+            StateHasChanged();
+
+            withCoords.Clear();
+
+            foreach (var c in all)
+            {
+                try
+                {
+                    var d = await ComplaintService.GetComplaintByIdAsync(c.Id);
+                    if (d?.Latitude.HasValue == true && d.Longitude.HasValue == true)
+                        withCoords.Add((c, d));
+                }
+                catch { /* skip individual failures */ }
+            }
+
+            // Recenter if we have at least one complaint
+            if (withCoords.Any())
+            {
+                await JS.InvokeVoidAsync("leafletFunctions.setView",
+                    withCoords[0].details.Latitude!.Value,
+                    withCoords[0].details.Longitude!.Value,
+                    11);
+            }
+
+            // Add markers
+            foreach (var item in withCoords)
+            {
+                try
+                {
+                    var color = item.listItem.StatusName?.ToLower() switch
+                    {
+                        "pending"     => "#fd7e14",
+                        "assigned"    => "#0dcaf0",
+                        "in progress" => "#0d6efd",
+                        "resolved"    => "#198754",
+                        _             => "#6c757d"
+                    };
+
+                    var popup =
+                        $"<div style='min-width:190px;font-family:sans-serif;'>" +
+                        $"<div style='font-weight:700;font-size:0.95rem;margin-bottom:4px;'>" +
+                        $"{System.Net.WebUtility.HtmlEncode(item.listItem.Title)}</div>" +
+                        $"<div style='margin-bottom:6px;'>" +
+                        $"<span style='background:{color};color:#fff;padding:2px 8px;border-radius:4px;font-size:0.78rem;'>" +
+                        $"{System.Net.WebUtility.HtmlEncode(item.listItem.StatusName)}</span>&nbsp;" +
+                        $"<small style='color:#555;'>{System.Net.WebUtility.HtmlEncode(item.listItem.CategoryName)}</small></div>" +
+                        $"<a href='/complaints/{item.listItem.Id}' " +
+                        $"style='display:block;text-align:center;background:#0d6efd;color:#fff;padding:5px;" +
+                        $"border-radius:5px;text-decoration:none;font-size:0.82rem;'>View Details</a>" +
+                        $"</div>";
+
+                    await JS.InvokeVoidAsync("leafletFunctions.addMarker",
+                        item.details.Latitude!.Value,
+                        item.details.Longitude!.Value,
+                        popup);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Map] Marker error: {ex.Message}");
+                }
+            }
+
+            statusMessage = "";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load complaints: {ex.Message}";
+            Console.WriteLine($"[Map] Load error: {ex}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RetryLoadMap()
+    {
+        withCoords.Clear();
+        mapInitialized = false;
+        mapStarted = false;
+        errorMessage = null;
+        statusMessage = null;
+        isLoading = true;
+        StateHasChanged();
+        await InitializeMapAsync();
+        await LoadMarkersAsync();
+    }
+}

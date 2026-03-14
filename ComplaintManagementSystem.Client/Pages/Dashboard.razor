@@ -1,0 +1,233 @@
+@page "/dashboard"
+@using ComplaintManagementSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject ComplaintManagementSystem.Client.Services.ComplaintService ComplaintService
+@inject ComplaintManagementSystem.Client.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (!isAuthenticated)
+{
+    <div class="d-flex justify-content-center align-items-center" style="height: 60vh;">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Checking authentication...</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>
+            <i class="fas fa-tachometer-alt me-2"></i>
+            @if (isAdmin)
+            {
+                <span>Admin Dashboard</span>
+            }
+            else
+            {
+                <span>My Dashboard</span>
+            }
+        </h3>
+        <small class="text-muted">Welcome back, @userFirstName!</small>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading dashboard...</span>
+            </div>
+            <p class="mt-2">Loading dashboard...</p>
+        </div>
+    }
+    else if (dashboard == null)
+    {
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>No dashboard data available.
+        </div>
+    }
+    else
+    {
+        @if (!isAdmin)
+        {
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Note:</strong> You're viewing your personal complaints dashboard. 
+                Only complaints created by you are shown here.
+            </div>
+        }
+
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card p-3 text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clipboard-list fa-2x text-primary mb-2"></i>
+                        <h5 class="card-title">
+                            @if (isAdmin) { <span>Total Complaints</span> }
+                            else { <span>My Complaints</span> }
+                        </h5>
+                        <h2 class="text-primary">@dashboard.TotalComplaints</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card p-3 text-center">
+                    <div class="card-body">
+                        <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                        <h5 class="card-title">Pending</h5>
+                        <h2 class="text-warning">@dashboard.PendingComplaints</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card p-3 text-center">
+                    <div class="card-body">
+                        <i class="fas fa-spinner fa-2x text-info mb-2"></i>
+                        <h5 class="card-title">In Progress</h5>
+                        <h2 class="text-info">@dashboard.InProgressComplaints</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card p-3 text-center">
+                    <div class="card-body">
+                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                        <h5 class="card-title">Resolved</h5>
+                        <h2 class="text-success">@dashboard.ResolvedComplaints</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Complaints
+                </h5>
+                @if (isAdmin)
+                {
+                    <small class="text-muted">Showing all complaints</small>
+                }
+                else
+                {
+                    <small class="text-muted">Your complaints only</small>
+                }
+            </div>
+            <div class="card-body">
+                @if (dashboard.RecentComplaints.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Created Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in dashboard.RecentComplaints)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-secondary">#@c.ComplaintId</span></td>
+                                        <td class="text-truncate-2">@c.Title</td>
+                                        <td><span class="badge bg-primary">@c.CategoryName</span></td>
+                                        <td>
+                                            <span class="badge @GetStatusBadgeClass(c.StatusName)">@c.StatusName</span>
+                                        </td>
+                                        <td>@c.CreatedDate.ToString("MMM dd, yyyy")</td>
+                                        <td>
+                                            <a href="/complaints/@c.ComplaintId" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">
+                            @if (isAdmin)
+                            {
+                                <span>No recent complaints found.</span>
+                            }
+                            else
+                            {
+                                <span>You haven't created any complaints yet.</span>
+                            }
+                        </p>
+                        @if (!isAdmin)
+                        {
+                            <a href="/create-complaint" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i>Create First Complaint
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private DashboardResponse? dashboard;
+    private bool isLoading = true;
+    private bool isAuthenticated = false;
+    private bool isAdmin = false;
+    private string userFirstName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            isAuthenticated = true;
+            userFirstName = authState.User.Claims.FirstOrDefault(c => c.Type == "given_name" || c.Type == "givenname")?.Value ?? "User";
+            
+            // Check if user is admin (RoleId 1 typically means admin)
+            var roleClaim = authState.User.Claims.FirstOrDefault(c => c.Type == "role" || c.Type == ClaimTypes.Role || c.Type == "RoleId");
+            isAdmin = roleClaim?.Value == "1" || roleClaim?.Value?.ToLower() == "admin";
+            
+            try
+            {
+                dashboard = await ComplaintService.GetDashboardAsync();
+            }
+            catch (Exception)
+            {
+                // Handle error gracefully
+            }
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+        
+        isLoading = false;
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "pending" => "bg-warning text-dark",
+            "assigned" => "bg-info",
+            "in progress" => "bg-info",
+            "resolved" => "bg-success",
+            _ => "bg-secondary"
+        };
+    }
+}

@@ -1,0 +1,354 @@
+@page "/complaints/{Id:int}"
+@using ComplaintManagementSystem.Shared.DTOs
+@using System.Linq
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using ComplaintManagementSystem.Client.Services
+@inject ComplaintManagementSystem.Client.Services.ComplaintService ComplaintService
+@inject ComplaintManagementSystem.Client.Services.UserService UserService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Complaint Details</PageTitle>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">Loading complaint...</p>
+    </div>
+}
+else if (complaint == null)
+{
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>Complaint not found.
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="fas fa-clipboard-check me-2"></i>Complaint Details</h3>
+        <a href="/complaints" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Back to List
+        </a>
+    </div>
+
+    <!-- Main Info -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>@complaint.Title</h5>
+            <span class="badge @GetStatusBadgeClass(complaint.StatusName) fs-6">@complaint.StatusName</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Category</small>
+                    <span class="badge bg-primary">@complaint.CategoryName</span>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Priority</small>
+                    <span class="badge @GetPriorityBadgeClass(complaint.Priority)">
+                        <i class="fas @GetPriorityIcon(complaint.Priority) me-1"></i>@complaint.Priority
+                    </span>
+                </div>
+                <div class="col-md-4">
+                    <small class="text-muted d-block">Created Date</small>
+                    <span>@complaint.CreatedAt.ToString("MMM dd, yyyy hh:mm tt")</span>
+                </div>
+                <div class="col-12">
+                    <small class="text-muted d-block">Description</small>
+                    <p class="mb-0">@complaint.Description</p>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(complaint.LocationAddress))
+                {
+                    <div class="col-md-8">
+                        <small class="text-muted d-block">Location Address</small>
+                        <span><i class="fas fa-map-marker-alt text-danger me-1"></i>@complaint.LocationAddress</span>
+                    </div>
+                }
+                @if (complaint.Latitude.HasValue && complaint.Longitude.HasValue)
+                {
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Coordinates</small>
+                        <span class="font-monospace small">@complaint.Latitude, @complaint.Longitude</span>
+                    </div>
+                }
+                @if (complaint.ResolvedAt.HasValue)
+                {
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Resolved Date</small>
+                        <span class="text-success">@complaint.ResolvedAt.Value.ToString("MMM dd, yyyy")</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin-only: Update Status -->
+    @if (isAdminOrEngineer)
+    {
+        <div class="card mb-4 shadow-sm border-warning">
+            <div class="card-header bg-warning bg-opacity-10">
+                <h5 class="mb-0"><i class="fas fa-edit me-2 text-warning"></i>Update Status <span class="badge bg-warning text-dark ms-2 fs-6">Admin/Staff</span></h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">New Status</label>
+                        <InputSelect TValue="int?" @bind-Value="SelectedStatusId" class="form-select">
+                            <option value="">-- Select Status --</option>
+                            <option value="1">Pending</option>
+                            <option value="2">Assigned</option>
+                            <option value="3">In Progress</option>
+                            <option value="4">Resolved</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-warning w-100" @onclick="OnUpdateStatusClicked" disabled="@(!SelectedStatusId.HasValue)">
+                            <i class="fas fa-sync me-1"></i>Update Status
+                        </button>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check me-1"></i>@statusMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(statusError))
+                {
+                    <div class="alert alert-danger mt-3 mb-0"><i class="fas fa-times me-1"></i>@statusError</div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Admin-only: Assign Complaint -->
+    @if (isAdminOrEngineer)
+    {
+        <div class="card mb-4 shadow-sm border-info">
+            <div class="card-header bg-info bg-opacity-10">
+                <h5 class="mb-0"><i class="fas fa-user-tag me-2 text-info"></i>Assign Complaint <span class="badge bg-info text-dark ms-2 fs-6">Admin/Staff</span></h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">Assign To</label>
+                        <InputSelect TValue="int?" @bind-Value="SelectedUserId" class="form-select">
+                            <option value="">-- Select User --</option>
+                            @foreach (var u in users)
+                            {
+                                <option value="@u.UserId">@u.FirstName @u.LastName</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-info w-100" @onclick="OnAssignClicked" disabled="@isAssigning">
+                            <i class="fas fa-user-check me-1"></i>@(isAssigning ? "Assigning..." : "Assign")
+                        </button>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(assignMessage))
+                {
+                    <div class="alert alert-success mt-3 mb-0"><i class="fas fa-check me-1"></i>@assignMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(assignError))
+                {
+                    <div class="alert alert-danger mt-3 mb-0"><i class="fas fa-times me-1"></i>@assignError</div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Timeline — visible to all -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-history me-2"></i>Activity Timeline</h5>
+        </div>
+        <div class="card-body">
+            @if (complaint.Updates == null || !complaint.Updates.Any())
+            {
+                <p class="text-muted mb-0"><i class="fas fa-clock me-2"></i>No updates yet.</p>
+            }
+            else
+            {
+                <div class="timeline">
+                    @foreach (var u in complaint.Updates.OrderBy(x => x.CreatedDate))
+                    {
+                        <div class="d-flex mb-3">
+                            <div class="me-3 text-center" style="min-width:36px;">
+                                <span class="badge rounded-circle bg-primary p-2">
+                                    <i class="fas fa-circle" style="font-size:0.5rem;"></i>
+                                </span>
+                                <div style="width:2px; background:#dee2e6; height:100%; margin:4px auto 0;"></div>
+                            </div>
+                            <div class="flex-grow-1 pb-2 border-bottom">
+                                <div class="fw-medium">@(string.IsNullOrWhiteSpace(u.UpdateMessage) ? "Status updated" : u.UpdateMessage)</div>
+                                <small class="text-muted"><i class="fas fa-clock me-1"></i>@u.CreatedDate.ToString("MMM dd, yyyy hh:mm tt")</small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ComplaintDetailsResponse? complaint;
+    private bool isLoading = true;
+    private bool isAdmin = false;
+    private bool isAdminOrEngineer = false;
+    private int currentUserId = 0;
+
+    private int? SelectedStatusId { get; set; }
+    private string? statusMessage;
+    private string? statusError;
+
+    private int? SelectedUserId { get; set; }
+    private List<UserResponse> users = new();
+    private bool isAssigning = false;
+    private string? assignMessage;
+    private string? assignError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isAdmin = JwtAuthenticationStateProvider.IsAdminPrincipal(authState.User);
+        isAdminOrEngineer = JwtAuthenticationStateProvider.IsAdminOrEngineerPrincipal(authState.User);
+        int.TryParse(authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                     ?? authState.User.FindFirst("sub")?.Value, out currentUserId);
+
+        await LoadDetails();
+
+        if (isAdminOrEngineer)
+        {
+            var allUsers = await UserService.GetUsersAsync();
+
+            if (isAdmin)
+            {
+                // Admin can assign only to Engineers (RoleId = 3), and never to themselves
+                users = allUsers
+                    .Where(u => u.RoleId == 3 && u.UserId != currentUserId)
+                    .ToList();
+            }
+            else
+            {
+                // Engineer can assign to Engineers and Admins (RoleId 1 or 3), but not to themselves
+                users = allUsers
+                    .Where(u => (u.RoleId == 1 || u.RoleId == 3) && u.UserId != currentUserId)
+                    .ToList();
+            }
+        }
+    }
+
+    private async Task LoadDetails()
+    {
+        isLoading = true;
+        complaint = await ComplaintService.GetComplaintByIdAsync(Id);
+        SelectedStatusId = complaint?.StatusId;
+        isLoading = false;
+    }
+
+    private async Task OnUpdateStatusClicked()
+    {
+        statusMessage = null;
+        statusError = null;
+        if (!SelectedStatusId.HasValue) return;
+
+        var req = new UpdateComplaintStatusRequest
+        {
+            ComplaintId = Id,
+            StatusId = SelectedStatusId.Value,
+            UpdatedByUserId = currentUserId,
+            Note = "Status updated by admin"
+        };
+
+        try
+        {
+            await ComplaintService.UpdateComplaintStatusAsync(Id, req);
+            statusMessage = "Status updated successfully.";
+            await LoadDetails();
+        }
+        catch (Exception ex)
+        {
+            statusError = $"Failed to update status: {ex.Message}";
+        }
+    }
+
+    private async Task OnAssignClicked()
+    {
+        assignMessage = null;
+        assignError = null;
+
+        if (!SelectedUserId.HasValue)
+        {
+            assignError = "Please select a user to assign.";
+            return;
+        }
+
+        isAssigning = true;
+
+        var req = new AssignComplaintRequest
+        {
+            ComplaintId = Id,
+            AssignedToUserId = SelectedUserId.Value,
+            AssignedByUserId = currentUserId
+        };
+
+        try
+        {
+            var success = await ComplaintService.AssignComplaintAsync(Id, req);
+            if (success)
+            {
+                assignMessage = "Complaint assigned successfully.";
+                await LoadDetails();
+            }
+            else
+            {
+                assignError = "Assignment failed. Server returned an error.";
+            }
+        }
+        catch (Exception ex)
+        {
+            assignError = $"Assignment failed: {ex.Message}";
+        }
+        finally
+        {
+            isAssigning = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(string status) => status?.ToLower() switch
+    {
+        "pending"     => "bg-warning text-dark",
+        "assigned"    => "bg-info text-dark",
+        "in progress" => "bg-primary",
+        "resolved"    => "bg-success",
+        _             => "bg-secondary"
+    };
+
+    private string GetPriorityBadgeClass(string priority) => priority?.ToLower() switch
+    {
+        "low"    => "bg-success",
+        "medium" => "bg-warning text-dark",
+        "high"   => "bg-danger",
+        _        => "bg-secondary"
+    };
+
+    private string GetPriorityIcon(string priority) => priority?.ToLower() switch
+    {
+        "low"    => "fa-arrow-down",
+        "medium" => "fa-minus",
+        "high"   => "fa-arrow-up",
+        _        => "fa-circle"
+    };
+}

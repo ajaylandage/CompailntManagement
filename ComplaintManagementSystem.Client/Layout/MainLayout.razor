@@ -1,0 +1,107 @@
+﻿@inherits LayoutComponentBase
+
+<div class="app-root">
+    <header class="sticky-top shadow-sm bg-white">
+        <NavMenu />
+    </header>
+
+    <main class="app-main">
+        <div class="container-fluid app-main-inner">
+            <div class="row">
+                <div class="col-12">
+                    <article class="content px-3 px-md-4" tabindex="-1">
+                        @Body
+                    </article>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer bg-dark text-light pt-4 mt-4">
+        <div class="container">
+            <div class="row gy-4">
+                <div class="col-md-4">
+                    <h5 class="mb-3"><i class="fas fa-shield-alt me-2"></i>Smart Complaint</h5>
+                    <p class="small mb-2">
+                        Smart Complaint Management System helps citizens and organizations report, track,
+                        and resolve issues with full transparency and accountability.
+                    </p>
+                    <p class="small mb-0">
+                        Crafted with care by <strong>Ajay</strong>.
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="mb-3">Platform highlights</h6>
+                    <ul class="list-unstyled small mb-0">
+                        <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Multi-channel complaint intake</li>
+                        <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Interactive GIS map for hotspots</li>
+                        <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Role-based workflow for Admins & Engineers</li>
+                        <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Timeline view of every update</li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="mb-3">Contact & quick links</h6>
+                    <p class="small mb-1">
+                        <i class="fas fa-envelope me-2"></i>
+                        <a href="mailto:support@smartcomplaints.local" class="link-light text-decoration-none">support@smartcomplaints.local</a>
+                    </p>
+                    <p class="small mb-3">
+                        <i class="fas fa-phone me-2"></i>
+                        <a href="tel:+919689869210" class="link-light text-decoration-none">+91-96898 69210</a>
+                    </p>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <a class="btn btn-sm btn-outline-light" href="/complaints">
+                            <i class="fas fa-list me-1"></i>View complaints
+                        </a>
+                        <a class="btn btn-sm btn-primary" href="/create-complaint">
+                            <i class="fas fa-plus me-1"></i>Raise a complaint
+                        </a>
+                    </div>
+                    <div class="small text-muted">
+                        <a href="/" class="link-light text-decoration-none me-3">Home</a>
+                        <a href="/dashboard" class="link-light text-decoration-none me-3">Dashboard</a>
+                        <a href="/complaints-map" class="link-light text-decoration-none">Map</a>
+                    </div>
+                </div>
+            </div>
+            <hr class="border-secondary mt-4 mb-3" />
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-2 small">
+                <span>
+                    &copy; @DateTime.UtcNow.Year Smart Complaint Management System. All rights reserved.
+                </span>
+                <span class="text-muted">
+                    Built with Blazor WebAssembly &amp; Bootstrap.
+                </span>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<style>
+    .app-root {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: #f5f7fb;
+    }
+
+    .app-main {
+        flex: 1 0 auto;
+    }
+
+    .app-main-inner {
+        padding-top: 0.75rem;
+        padding-bottom: 2rem;
+    }
+
+    .app-footer {
+        flex-shrink: 0;
+        font-size: 0.9rem;
+    }
+
+    @@media (max-width: 576px) {
+        .app-main-inner {
+            padding-top: 0.5rem;
+        }
+    }
+</style>
