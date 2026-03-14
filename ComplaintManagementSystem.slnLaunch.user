@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "ComplaintManagementSystem.Client\\ComplaintManagementSystem.Client.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "ComplaintManagementSystem.API\\ComplaintManagementSystem.API.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="ComplaintManagementSystem.API/ComplaintManagementSystem.API.csproj" />
+  <Project Path="ComplaintManagementSystem.Client/ComplaintManagementSystem.Client.csproj" />
+  <Project Path="ComplaintManagementSystem.Database/ComplaintManagementSystem.Database.sqlproj" Id="fb0994d5-a225-4051-a4ce-eaa81a2b71ec">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="ComplaintManagementSystem.Shared/ComplaintManagementSystem.Shared.csproj" />
+</Solution>
